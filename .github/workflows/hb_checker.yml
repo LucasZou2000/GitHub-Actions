@@ -20,6 +20,8 @@ jobs:
   checker:
     runs-on: ubuntu-22.04
     timeout-minutes: 90
+    permissions:
+      contents: write          # needed to push logs back to the `logs` branch
     steps:
       - uses: actions/checkout@v4
 
@@ -56,19 +58,56 @@ jobs:
         id: checker
         continue-on-error: true
         run: |
-          set -o pipefail
           mkdir -p out
           IMAGE=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -i x5 | head -n1)
-          echo "using image: $IMAGE"
+          echo "using image: $IMAGE" | tee out/image.log
+          set -o pipefail
+          # tee on the host side: no flush race when the container exits.
           docker run --rm -v "$PWD:/work" -v "$PWD/out:/out" -w /work "$IMAGE" bash -lc '
-            set -o pipefail
-            hb_mapper --version 2>&1 | tee /out/version.log
-            echo "--- checker usage (for flag diagnosis) ---"
-            hb_mapper checker --help 2>&1 | tee /out/checker_help.log || true
-            echo "--- checker: bayes-e ---"
-            hb_mapper checker --model-type onnx --march bayes-e \
-              --model models/nature_bpu.onnx 2>&1 | tee /out/checker.log
-          '
+            set +e
+            echo "== hb_mapper --version =="
+            hb_mapper --version
+            echo
+            echo "== hb_mapper checker --help =="
+            hb_mapper checker --help
+            echo
+            echo "== model files =="
+            ls -l /work/models
+
+            run_case () {
+              local tag="$1"; shift
+              echo
+              echo "########## CASE: $tag ##########"
+              echo "cmd: hb_mapper $*"
+              hb_mapper "$@"
+              local rc=$?
+              echo "---- CASE $tag exit=$rc ----"
+              return $rc
+            }
+
+            # OE front-ends are picky about opset; try the highest first, then 11.
+            run_case "opset17" checker --model-type onnx --march bayes-e \
+              --model models/nature_bpu.onnx
+            RC17=$?
+
+            run_case "opset11" checker --model-type onnx --march bayes-e \
+              --model models/nature_bpu_opset11.onnx
+            RC11=$?
+
+            # Static shapes should not need --input-shape, but pass it if both failed.
+            if [ $RC17 -ne 0 ] && [ $RC11 -ne 0 ]; then
+              run_case "opset11+inputshape" checker --model-type onnx --march bayes-e \
+                --model models/nature_bpu_opset11.onnx \
+                --input-shape raw_history 2x12x1x264
+              RCIS=$?
+            else
+              RCIS=skipped
+            fi
+
+            echo
+            echo "== SUMMARY: opset17=$RC17 opset11=$RC11 inputshape=$RCIS =="
+            [ $RC17 -eq 0 ] || [ $RC11 -eq 0 ] || [ $RCIS -eq 0 ]
+          ' 2>&1 | tee out/full_console.log
 
       - name: Summarise operator placement
         if: always()
@@ -79,13 +118,28 @@ jobs:
             echo "model: \`models/nature_bpu.onnx\`  input: \`[2,12,1,264]\`  output: \`[2,80,1,16]\`"
             echo
             echo '```'
-            if [ -s out/checker.log ]; then
-              grep -Ei 'conv|relu|slice|add|bpu|cpu|unsupport|not support|warn|error|total' out/checker.log | head -n 120
+            if [ -s out/full_console.log ]; then
+              grep -Ei 'CASE|exit=|conv|relu|slice|add|bpu|cpu|unsupport|not support|warn|error|total' out/full_console.log | head -n 160
             else
               echo "no log produced"
             fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The log is the whole deliverable of this spike; publish it to a branch so it
+      # can be read without downloading artifacts.
+      - name: Publish logs to `logs` branch
+        if: always()
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/logpub" && cd "$RUNNER_TEMP/logpub"
+          git init -q -b logs
+          cp -r "$GITHUB_WORKSPACE/out/." . || true
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "checker logs: run ${GITHUB_RUN_ID}" || echo "nothing to publish"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" logs
 
       - uses: actions/upload-artifact@v4
         if: always()

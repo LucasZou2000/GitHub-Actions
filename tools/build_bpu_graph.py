@@ -148,6 +148,22 @@ def main():
     }, indent=2) + "\n")
 
     print("wrote", DST, DST.stat().st_size, "bytes")
+
+    # Some OE front-ends reject high opsets; emit a semantically identical
+    # opset-11 copy so the checker can be tried against both.
+    # onnx.version_converter has no 17->11 adapter chain, but every op used here
+    # (Conv, Relu, Slice-10 signature, Add/Mul/Sub/Div, Gather, Gemm, Reshape,
+    # Constant) has identical semantics in opset 11, so restamping is exact.
+    lo = onnx.load(str(DST))
+    for ops in lo.opset_import:
+        if ops.domain in ("", "ai.onnx"):
+            ops.version = 11
+    lo.ir_version = 7
+    LOW = DST.with_name("nature_bpu_opset11.onnx")
+    onnx.save(lo, LOW)
+    onnx.checker.check_model(str(LOW))
+    print("wrote", LOW, LOW.stat().st_size, "bytes  opset=11 ir=7")
+
     print("wrote", PRE)
 
 
