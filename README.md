@@ -1,36 +1,73 @@
 # GitHub-Actions — X5 BPU 可行性验证（离线 spike）
 
-目的只有一件事：**用免费的 GitHub Actions 跑一次 `hb_mapper checker`**，回答"Nature TCN 的图能不能干净地落到 RDK X5 的 BPU（march `bayes-e`）上"。
+回答一个问题：**Nature TCN 的图能不能干净地落到 RDK X5 的 BPU（march `bayes-e`）上。**
 
-- 不碰 StrideAssist 主仓、不改主线、不涉及硬件。
-- 不训练、不重排权重、不做任何精度取舍；只改图的外部形态。
-- 判定结果只回答"算子会不会被退回 CPU"，不构成任何性能或精度承诺。
+- 不碰 StrideAssist 主仓、不动主线代码、不涉及硬件。
+- 不训练、不重排权重；只改图的外部形态。
+- 结论只覆盖"能不能编译 / 算子会不会退回 CPU / 静态延迟量级"，**不构成精度承诺**。
+
+## 结论（已实测，2026-11-18）
+
+工具链：`hb_mapper 1.24.3` / `hbdk 3.49.15` / `horizon_nn 1.1.0`，OE v1.2.8，`--march bayes-e`。
+
+| 项目 | 结果 |
+|---|---|
+| **算子放置** | **25 / 25 节点全部 BPU，零 CPU 回退** |
+| **子图切分** | **1 个**（`main_graph_subgraph_0`），没有碎片化 |
+| 量化类型 | 全 int8；末层 `Relu_55` 为 `HzLut2Layer` int16（输出层自动提精度） |
+| 静态延迟 | **1967.7 µs（≈2.0 ms）**，hbdk-cc 评估 `FPS=1016.4` |
+| DDR 带宽 | **3 759 552 B ≈ 3.59 MB / 次推理** |
+| 算力利用率 | 48.03 MMAC ÷ 1.9677 ms ≈ 24.4 GMAC/s，相对 10 TOPS **约 0.5%** |
+
+**必须先过的一关：opset。** X5 的 ONNX 前端**最高只支持 opset 11**，原始导出是 opset 17 / IR 8，直接报：
+
+```
+ERROR *** ERROR-OCCUR-DURING {horizon_nn.build_onnx} ***,
+error message: The opset version of the model is 17, the maximum supported version is 11.
+```
+
+`hb_mapper` 用 `sys.exit(-1)` 退出，所以看到的是 **exit 255**。降为 opset 11 / IR 7 后一次通过，且与 opset 17 版本 **逐位一致**（`max diff = 0.0`）。
+
+**延迟这一项推翻了我之前的算术估计。** 按 48 MMAC ÷ 5 TMAC/s 推出的 ~10 µs 是错的，实测 **2 ms**，差 200 倍。原因不是算力，而是：
+
+- 25 个算子每个都是一条独立 BPU 指令，各自要 DDR 往返；张量太小（末端 `[2,80,1,16]` = 10 KB），固定开销完全主导；
+- 卷积是 `1×5` 深度极浅的 1D 结构，`W=1`，TAE 阵列填不满（末端 `W=16`）。
+
+也就是说"BPU 更适合大矩阵"那个口径在**利用率**上是对的，但它不构成"不能用"——2 ms 在 10 Hz 下只占 **2%** 占空比。
+
+占空比推算：**10 Hz → 2.0%**；**200 Hz → 39.4%**（且无法与自身流水，除非多核 / 多图并行）。DDR 侧 10 Hz 只有 37.6 MB/s，无压力。
+
+## 还没验证的两件事
+
+1. **精度**。本次 `checker` 用的是 `calibration_type: fixed` + 1 个样本（工具链的占位校准），日志里 `Cosine Similarity` 全是 `--`，**这些数字没有任何精度含义**。真正的 INT8 精度要真实窗口 + `makertbin` 才能测。
+2. **板上实测**。1967.7 µs 是 hbdk-cc 的静态评估，实板通常更高（DDR 竞争、调度）。要 `hrt_model_exec perf` 才算数。
 
 ## 为什么需要一个新的 ONNX
 
-原始 `nature_latest_fp32.onnx` 是 rank-3 `[2,12,249]` + 1D 卷积，按 X5 官方算子表有几处会被判不合规：
+原始 `nature_latest_fp32.onnx` 是 rank-3 `[2,12,249]` + 1D 卷积，按 X5 算子表有几处会不合规：
 
 | 改动 | 原因 |
 |---|---|
 | 输入改 rank-4 `[2,12,1,264]`，卷积改用 `(1,5)` 核 | X5 BPU 只加速 conv2d/conv3d，conv1d 只在 CPU 约束里 |
-| 长度 249 → **264**（前面补 15 帧零） | 空洞卷积要求输入 W 能被 dilation 整除；249 时每层输入长度都是 `4d*k+1`，全部不整除 |
-| mirror / center / scale 移出图外，由 CPU 做 | 原始输入张量把陀螺（每通道 scale 38~123）和加速度计（1.8~6.0）混在一个 per-tensor INT8 scale 里，加速度计通道会被压死 |
-| 80→2 的线性头切掉，CPU 用 FP32 做 | 只有 160 MAC，放到 CPU 上成本为零，还能保住输出端精度 |
+| 长度 249 → **264**（前置 15 帧零） | 空洞卷积要求输入 W 能被 dilation 整除；249 时每层输入长度都是 `4d·k+1`，全部不整除 |
+| mirror / center / scale 移出图外，由 CPU 做 | 原输入把陀螺（每通道 scale 38~123）和加速度计（1.8~6.0）混进同一个 per-tensor INT8 scale，加速度计通道会被压死 |
+| 80→2 线性头切掉，CPU 用 FP32 做 | 只有 160 MAC，放 CPU 成本为零，还能保住输出端精度 |
+| 版本戳降为 **opset 11 / IR 7** | 前端硬限制，见上 |
 
-补 15 帧零是**严格等价**的：感受野正好 249 帧，补的零落在感受野之外，最后一帧输出不变。
-等价性由 `tools/parity_check.py` 校验，实测 64 窗口 `max |diff| = 2.4e-07 Nm/kg`。
+补 15 帧零是**严格等价**的：感受野正好 249 帧，补的零在感受野之外。等价性由 `tools/parity_check.py` 校验，实测 64 窗口 `max |diff| = 2.4e-07 Nm/kg`；opset 降级再用 ORT 复验，与 opset 17 **逐位相同**。
 
 ## 文件
 
 ```
-models/nature_bpu.onnx      派生图（4D / 264 / 无归一化 / 无头），1.19 MB
-models/preprocess.json      送数契约：mirror / center / scale / 头权重 / 零前缀帧数
-tools/build_bpu_graph.py    从主仓模型重新生成上图（幂等）
-tools/parity_check.py       与主仓原始图的数值等价校验（阈值 1e-5 Nm/kg）
-.github/workflows/hb_checker.yml   Actions：拉 OE v1.2.8 镜像 → hb_mapper checker
+models/nature_bpu.onnx           派生图（4D / 264 / 无归一化 / 无头），opset 17，1.19 MB
+models/nature_bpu_opset11.onnx   同一张图，opset 11 / IR 7 —— X5 前端只吃这个
+models/preprocess.json           送数契约：mirror / center / scale / 头权重 / 零前缀帧数
+tools/build_bpu_graph.py         从主仓模型重新生成上面两张图（幂等）+ preprocess.json
+tools/parity_check.py            与主仓原始图的数值等价校验（阈值 1e-5 Nm/kg）
+.github/workflows/hb_checker.yml Actions：镜像缓存 → hb_mapper checker → 日志回推 logs 分支
 ```
 
-注意：模型的第一维是**腿**，不是 batch。一次推理永远喂一条窗口的两条腿，输出 `[LH, LK, RH, RK]`。
+第一维是**腿**，不是 batch。一次推理喂一条窗口的两条腿，输出 `[LH, LK, RH, RK]`。
 
 ## 本地复现（Mac）
 
@@ -42,34 +79,35 @@ python3 -m venv .venv && .venv/bin/pip install onnx onnxruntime numpy
 
 ## 在 Actions 上跑
 
-仓库建议设为 **private**（2 000 分钟/月免费额度，本任务 10~30 分钟）。公有仓库虽然不限分钟，但会把模型权重公开。
+仓库保持 **public**（分钟数不限；内容本身就是公开论文模型重新导出的形态，无隐私顾虑）。
 
-Actions → `hb-checker` → Run workflow。它做四件事：
+Actions → `hb-checker` → Run workflow。它做：
 
-1. 删掉 runner 上预装的 ~25 GB 无关 SDK（OE 镜像很大）；
-2. 从阿里云 OSS 下 `docker_openexplorer_ubuntu_20_x5_cpu_v1.2.8.tar.gz`；
-3. `docker load` 后在容器里跑 `hb_mapper checker --model-type onnx --march bayes-e --model models/nature_bpu.onnx`；
-4. 把 `out/` 作为 artifact 上传，并在 job summary 里贴出算子放置摘要。
+1. 删掉 runner 上预装的 ~25 GB 无关 SDK；
+2. 取 `docker_openexplorer_ubuntu_20_x5_cpu_v1.2.8.tar.gz`（**1.69 GiB**，`actions/cache` 命中时跳过下载）；
+3. `docker load` 后在容器里依次尝试 `opset17 → opset11 → opset11 + --input-shape`，每次打 `CASE` 标记；
+4. 把完整控制台日志推到 **`logs` 分支**（`codeload` 可直接取，不必下载 artifact），同时上传 artifact。
+
+单次运行约 5 分钟（冷缓存），热缓存约 1 分钟。
 
 ## 结果怎么读
 
-看 artifact 里的 `checker.log`，关注三类信息：
+`logs` 分支的 `full_console.log` 里，看三件事：
 
-- **有没有 `unsupported` / `not support` / `fallback`**：有就说明该算子会退回 CPU，图会被切成多个子图；
-- **每个 Conv 被标成 BPU 还是 CPU**：目标是 11 个 Conv 全部 BPU；
-- **子图切分数**：切得越碎，DMA + 同步的固定开销越大（本例 48 MMAC，算力本来就不是瓶颈，切碎才致命）。
+- **`ERROR-OCCUR-DURING`**：最典型的是 opset 超限，直接降版本；
+- **算子表里 `ON` 列**：应为全 `BPU`，出现 `CPU` 说明该算子退回；
+- **`Subgraph` 列**：全是 `id(0)` 表示单子图，出现 `id(1)`/`id(2)` 说明被切碎，DMA 与同步开销会吃掉收益。
 
-三种结局：
+## 下一步
 
-| 结局 | 下一步 |
+| 目标 | 需要什么 |
 |---|---|
-| 11 个 Conv 全 BPU、无切分 | 可以做 PTQ：需要真实校准窗口（200~1000 个 249 帧窗口），再跑 `makertbin` + `hb_verifier` |
-| 少数层退回 CPU（例如末端 `W=16/1` 的极小卷积） | 仍可能可用，但要实测切分开销；或把末端几层留在 CPU FP32 |
-| 空洞卷积被拒 / 大面积切分 | 放弃 BPU 路线，CPU（ONNX Runtime 或 streaming cache）已经够 10 Hz |
+| 拿到 `.bin` 并上板测真实延迟 | `makertbin`：需要 `calibration_type` 配置 + 校准数据；`.bin` 用 `hrt_model_exec perf` 在 X5 上跑 |
+| 判定 INT8 精度 | **真实校准窗口**（200~1000 个 249 帧窗口，来自 `*_exo.csv`）；用合成数据校准会把阈值估得偏乐观 |
+| 决定是否切主线 | 上面两项都有数之后。当前主线的 10 Hz CPU 路径本身已达标，BPU 的收益是"回收约 1.6 个 A55 核 + 留余量"，不是"达标手段" |
 
 ## 已知限制
 
-- 14 GB 磁盘：镜像下载 + 加载后余量很小，workflow 里已经先清空间；失败时先看 `df -h` 那一步。
-- 从国内 OSS 拉到境外 runner 可能很慢（5 GB 级）；超时就改用 registry 拉取（需要 `docker login`，不要把凭据写进仓库）。
-- Actions runner 是临时 VM，产物必须走 artifact 带走。
-- 这一步**只验证可编译性**，不验证精度。INT8 精度要另外用真实数据测：`models/preprocess.json` 里的归一化外移已经把误差从 ~32 降到 ~9 mNm/kg（合成数据仿真），真实窗口仍需复核。
+- 校准必须是**真实数据**：本次 `fixed` + 1 样本只用于跑通流程。
+- Actions runner 是临时 VM，产物必须走 artifact 或 `logs` 分支带走。
+- 3.59 MB / 次推理的 DDR 流量在 10 Hz 下无压力，但若将来提高频率或多图并行，这一项会先成为约束。
