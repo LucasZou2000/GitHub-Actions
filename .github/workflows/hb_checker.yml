@@ -126,6 +126,19 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # hb_mapper writes its intermediates next to the model, not into out/.
+      # The runner is destroyed afterwards, so collect them explicitly.
+      - name: Collect build products
+        if: always()
+        run: |
+          mkdir -p out
+          cp -r .hb_check out/hb_check 2>/dev/null || echo "no .hb_check"
+          cp -v hb_mapper_checker*.log out/ 2>/dev/null || true
+          cp -v *.bin out/ 2>/dev/null || true
+          cp -v *_quant_info.json out/ 2>/dev/null || true
+          echo "--- collected ---"
+          find out -type f | sort | while read -r f; do echo "$(du -h "$f" | cut -f1)  $f"; done
+
       # The log is the whole deliverable of this spike; publish it to a branch so it
       # can be read without downloading artifacts.
       - name: Publish logs to `logs` branch
