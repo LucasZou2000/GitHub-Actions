@@ -2,3 +2,6 @@ out/
 .venv/
 oe_x5.tar.gz
 __pycache__/
+build/
+.hb_check/
+*.bin

@@ -1,0 +1,170 @@
+name: hb-makertbin
+
+# Builds a deployable .bin from models/nature_bpu_opset11.onnx using the
+# SYNTHETIC calibration set in calib/. Purpose: get a board-runnable model so
+# real latency can be measured with hrt_model_exec perf.
+# The .bin built here is NOT accuracy-valid -- see config.makertbin.yaml.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'config.makertbin.yaml'
+      - 'models/nature_bpu_opset11.onnx'
+      - 'calib/**'
+      - '.github/workflows/hb_makertbin.yml'
+
+env:
+  OE_IMAGE_TAR: https://d-robotics-aitoolchain.oss-cn-beijing.aliyuncs.com/oe_x5/1.2.8/docker_openexplorer_ubuntu_20_x5_cpu_v1.2.8.tar.gz
+
+jobs:
+  makertbin:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /opt/hostedtoolcache \
+                      /usr/local/share/powershell /usr/share/swift || true
+          sudo docker image prune -af || true
+          df -h /
+
+      - name: Cache OE image
+        id: img-cache
+        uses: actions/cache@v4
+        with:
+          path: oe_x5.tar.gz
+          key: oe-x5-cpu-v1.2.8
+
+      - name: Download OE X5 CPU image
+        if: steps.img-cache.outputs.cache-hit != 'true'
+        run: wget -q --show-progress -O oe_x5.tar.gz "$OE_IMAGE_TAR"
+
+      - name: Load image
+        run: |
+          docker load -i oe_x5.tar.gz
+          docker images
+
+      - name: Check calibration set
+        run: |
+          n=$(ls calib/raw_history_*.npy 2>/dev/null | wc -l)
+          echo "calibration windows: $n"
+          test "$n" -ge 20 || { echo "::error::calibration set too small"; exit 1; }
+
+      - name: hb_mapper makertbin
+        id: makertbin
+        continue-on-error: true
+        run: |
+          mkdir -p out
+          IMAGE=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -i x5 | head -n1)
+          echo "using image: $IMAGE" | tee out/image.log
+          set -o pipefail
+          docker run --rm -v "$PWD:/work" -v "$PWD/out:/out" -w /work "$IMAGE" bash -lc '
+            set +e
+            echo "== hb_mapper --version =="
+            hb_mapper --version
+            echo
+            echo "== hb_mapper makertbin --help =="
+            hb_mapper makertbin --help
+            echo
+
+            run_case () {
+              local tag="$1" cfg="$2"
+              echo
+              echo "########## CASE: $tag ($cfg) ##########"
+              hb_mapper makertbin --model-type onnx --config "$cfg"
+              local rc=$?
+              echo "---- CASE $tag exit=$rc ----"
+              if [ $rc -eq 0 ]; then
+                echo "########## SUCCESS: $tag ##########"
+                return 0
+              fi
+              return $rc
+            }
+
+            # A: the committed config. B/C are progressively looser fallbacks so a
+            # single run can distinguish a bad key from a bad march value.
+            run_case A config.makertbin.yaml && exit 0
+
+            cat > /tmp/b.yaml <<"YAML"
+            model_parameters:
+              onnx_model: "./models/nature_bpu_opset11.onnx"
+              march: "bayes-e"
+              output_model_file_prefix: "nature_bpu_synthcal"
+            input_parameters:
+              input_type_rt: "featuremap"
+              input_type_train: "featuremap"
+              input_layout_train: "NCHW"
+              norm_type: "no_preprocess"
+            calibration_parameters:
+              cal_data_dir: "./calib"
+              cal_data_type: "float32"
+            compiler_parameters:
+              compile_mode: "latency"
+              optimize_level: "O3"
+            YAML
+            run_case B_min_yaml /tmp/b.yaml && exit 0
+
+            sed -e "s/\"bayes-e\"/\"x5\"/" /tmp/b.yaml > /tmp/c.yaml
+            run_case C_min_march_x5 /tmp/c.yaml && exit 0
+
+            echo "########## ALL CASES FAILED ##########"
+            exit 1
+          ' 2>&1 | tee out/full_console.log
+
+      # hb_mapper writes products next to working_dir, not into out/.
+      - name: Collect build products
+        if: always()
+        run: |
+          mkdir -p out
+          find . -path ./out -prune -o -type f \
+            \( -name '*.bin' -o -name '*_quant_info.json' -o -name 'hb_mapper_makertbin*.log' \
+               -o -name '*_float_model.onnx' -o -name '*quantized_model.onnx' -o -name '*.html' \) \
+            -print -exec cp -v {} out/ \;
+          echo "--- collected ---"
+          find out -type f | sort | while read -r f; do echo "$(du -h "$f" | cut -f1)  $f"; done
+          for b in out/*.bin; do [ -e "$b" ] && sha256sum "$b"; done || true
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "## hb_mapper makertbin (bayes-e)"
+            echo
+            echo "config: \`config.makertbin.yaml\`  calibration: **synthetic** (\`calib/\`)"
+            echo
+            echo '```'
+            grep -Ei 'CASE|exit=|SUCCESS|FAILED|error|warning|\bFPS\b|latency|bin' out/full_console.log | head -n 120
+            echo '```'
+            echo
+            echo "products:"
+            echo '```'
+            find out -type f | sort
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish products to `logs-makertbin` branch
+        if: always()
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/pub" && cd "$RUNNER_TEMP/pub"
+          git init -q -b logs-makertbin
+          cp -r "$GITHUB_WORKSPACE/out/." . || true
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "makertbin products: run ${GITHUB_RUN_ID}" || echo "nothing to publish"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" logs-makertbin
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hb-makertbin-products
+          path: out/
+          if-no-files-found: warn
