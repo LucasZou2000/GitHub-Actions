@@ -32,14 +32,25 @@ jobs:
           sudo docker image prune -af || true
           df -h /
 
+      # 1.7 GiB over the public internet; cache it so re-runs skip the download.
+      - name: Cache OE image
+        id: img-cache
+        uses: actions/cache@v4
+        with:
+          path: oe_x5.tar.gz
+          key: oe-x5-cpu-v1.2.8
+
       - name: Download OE X5 CPU image
+        if: steps.img-cache.outputs.cache-hit != 'true'
         run: |
           wget -q --show-progress -O oe_x5.tar.gz "$OE_IMAGE_TAR"
           ls -lh oe_x5.tar.gz
           df -h /
 
       - name: Load image
-        run: docker load -i oe_x5.tar.gz
+        run: |
+          docker load -i oe_x5.tar.gz
+          docker images
 
       - name: hb_mapper checker
         id: checker
@@ -52,6 +63,8 @@ jobs:
           docker run --rm -v "$PWD:/work" -v "$PWD/out:/out" -w /work "$IMAGE" bash -lc '
             set -o pipefail
             hb_mapper --version 2>&1 | tee /out/version.log
+            echo "--- checker usage (for flag diagnosis) ---"
+            hb_mapper checker --help 2>&1 | tee /out/checker_help.log || true
             echo "--- checker: bayes-e ---"
             hb_mapper checker --model-type onnx --march bayes-e \
               --model models/nature_bpu.onnx 2>&1 | tee /out/checker.log
