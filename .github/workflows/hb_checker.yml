@@ -1,0 +1,82 @@
+name: hb-checker
+
+# Offline spike: does the Nature TCN graph compile onto the X5 BPU (march bayes-e)?
+# This job only runs `hb_mapper checker` -- no calibration data, no board, no hardware.
+# The checker reports which operators stay on the BPU and which fall back to the CPU.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'models/nature_bpu.onnx'
+      - '.github/workflows/hb_checker.yml'
+
+env:
+  # OE v1.2.8 is the toolchain version for X5 / bayes-e. Offline tar (no registry login).
+  OE_IMAGE_TAR: https://d-robotics-aitoolchain.oss-cn-beijing.aliyuncs.com/oe_x5/1.2.8/docker_openexplorer_ubuntu_20_x5_cpu_v1.2.8.tar.gz
+
+jobs:
+  checker:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          # The stock image ships ~25 GB of SDKs we do not need; the OE image is large.
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /opt/hostedtoolcache \
+                      /usr/local/share/powershell /usr/share/swift || true
+          sudo docker image prune -af || true
+          df -h /
+
+      - name: Download OE X5 CPU image
+        run: |
+          wget -q --show-progress -O oe_x5.tar.gz "$OE_IMAGE_TAR"
+          ls -lh oe_x5.tar.gz
+          df -h /
+
+      - name: Load image
+        run: docker load -i oe_x5.tar.gz
+
+      - name: hb_mapper checker
+        id: checker
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -p out
+          IMAGE=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -i x5 | head -n1)
+          echo "using image: $IMAGE"
+          docker run --rm -v "$PWD:/work" -v "$PWD/out:/out" -w /work "$IMAGE" bash -lc '
+            set -o pipefail
+            hb_mapper --version 2>&1 | tee /out/version.log
+            echo "--- checker: bayes-e ---"
+            hb_mapper checker --model-type onnx --march bayes-e \
+              --model models/nature_bpu.onnx 2>&1 | tee /out/checker.log
+          '
+
+      - name: Summarise operator placement
+        if: always()
+        run: |
+          {
+            echo "## hb_mapper checker (bayes-e)"
+            echo
+            echo "model: \`models/nature_bpu.onnx\`  input: \`[2,12,1,264]\`  output: \`[2,80,1,16]\`"
+            echo
+            echo '```'
+            if [ -s out/checker.log ]; then
+              grep -Ei 'conv|relu|slice|add|bpu|cpu|unsupport|not support|warn|error|total' out/checker.log | head -n 120
+            else
+              echo "no log produced"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hb-checker-logs
+          path: out/
+          if-no-files-found: warn
