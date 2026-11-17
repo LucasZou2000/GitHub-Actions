@@ -1,0 +1,578 @@
+{
+    "Conv_0": {
+        "type": "Conv",
+        "inputs": [
+            "raw_history_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.0/conv1/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_1": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.0/conv1/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.0/Relu_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Conv_2": {
+        "type": "Conv",
+        "inputs": [
+            "/latest/blocks/blocks.0/Relu_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.0/conv2/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_3": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.0/conv2/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.0/Relu_1_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Slice_8": {
+        "type": "Slice",
+        "inputs": [
+            "raw_history_calibrated",
+            "/latest/blocks/blocks.0/Constant_1_output_0",
+            "/latest/blocks/blocks.0/Constant_2_output_0",
+            "/latest/blocks/blocks.0/Constant_output_0",
+            "/latest/blocks/blocks.0/Constant_3_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.0/Slice_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ],
+            [],
+            [],
+            [],
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Conv_9": {
+        "type": "Conv",
+        "inputs": [
+            "/latest/blocks/blocks.0/Slice_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.0/downsample/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Add_10": {
+        "type": "Add",
+        "inputs": [
+            "/latest/blocks/blocks.0/Relu_1_output_0_calibrated",
+            "/latest/blocks/blocks.0/downsample/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.0/Add_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ],
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_11": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.0/Add_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.0/Relu_2_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Conv_12": {
+        "type": "Conv",
+        "inputs": [
+            "/latest/blocks/blocks.0/Relu_2_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.1/conv1/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_13": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.1/conv1/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.1/Relu_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Conv_14": {
+        "type": "Conv",
+        "inputs": [
+            "/latest/blocks/blocks.1/Relu_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.1/conv2/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_15": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.1/conv2/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.1/Relu_1_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Slice_20": {
+        "type": "Slice",
+        "inputs": [
+            "/latest/blocks/blocks.0/Relu_2_output_0_calibrated",
+            "/latest/blocks/blocks.1/Constant_1_output_0",
+            "/latest/blocks/blocks.1/Constant_2_output_0",
+            "/latest/blocks/blocks.1/Constant_output_0",
+            "/latest/blocks/blocks.1/Constant_3_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.1/Slice_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ],
+            [],
+            [],
+            [],
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Add_21": {
+        "type": "Add",
+        "inputs": [
+            "/latest/blocks/blocks.1/Relu_1_output_0_calibrated",
+            "/latest/blocks/blocks.1/Slice_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.1/Add_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ],
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_22": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.1/Add_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.1/Relu_2_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Conv_23": {
+        "type": "Conv",
+        "inputs": [
+            "/latest/blocks/blocks.1/Relu_2_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.2/conv1/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_24": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.2/conv1/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.2/Relu_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Conv_25": {
+        "type": "Conv",
+        "inputs": [
+            "/latest/blocks/blocks.2/Relu_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.2/conv2/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_26": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.2/conv2/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.2/Relu_1_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Slice_31": {
+        "type": "Slice",
+        "inputs": [
+            "/latest/blocks/blocks.1/Relu_2_output_0_calibrated",
+            "/latest/blocks/blocks.2/Constant_1_output_0",
+            "/latest/blocks/blocks.2/Constant_2_output_0",
+            "/latest/blocks/blocks.2/Constant_output_0",
+            "/latest/blocks/blocks.2/Constant_3_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.2/Slice_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ],
+            [],
+            [],
+            [],
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Add_32": {
+        "type": "Add",
+        "inputs": [
+            "/latest/blocks/blocks.2/Relu_1_output_0_calibrated",
+            "/latest/blocks/blocks.2/Slice_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.2/Add_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ],
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_33": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.2/Add_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.2/Relu_2_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Conv_34": {
+        "type": "Conv",
+        "inputs": [
+            "/latest/blocks/blocks.2/Relu_2_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.3/conv1/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_35": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.3/conv1/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.3/Relu_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Conv_36": {
+        "type": "Conv",
+        "inputs": [
+            "/latest/blocks/blocks.3/Relu_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.3/conv2/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_37": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.3/conv2/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.3/Relu_1_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Slice_42": {
+        "type": "Slice",
+        "inputs": [
+            "/latest/blocks/blocks.2/Relu_2_output_0_calibrated",
+            "/latest/blocks/blocks.3/Constant_1_output_0",
+            "/latest/blocks/blocks.3/Constant_2_output_0",
+            "/latest/blocks/blocks.3/Constant_output_0",
+            "/latest/blocks/blocks.3/Constant_3_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.3/Slice_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ],
+            [],
+            [],
+            [],
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Add_43": {
+        "type": "Add",
+        "inputs": [
+            "/latest/blocks/blocks.3/Relu_1_output_0_calibrated",
+            "/latest/blocks/blocks.3/Slice_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.3/Add_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ],
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_44": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.3/Add_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.3/Relu_2_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Conv_45": {
+        "type": "Conv",
+        "inputs": [
+            "/latest/blocks/blocks.3/Relu_2_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.4/conv1/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_46": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.4/conv1/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.4/Relu_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Conv_47": {
+        "type": "Conv",
+        "inputs": [
+            "/latest/blocks/blocks.4/Relu_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.4/conv2/Conv_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_48": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.4/conv2/Conv_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.4/Relu_1_output_0"
+        ],
+        "thresholds": [
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Slice_53": {
+        "type": "Slice",
+        "inputs": [
+            "/latest/blocks/blocks.3/Relu_2_output_0_calibrated",
+            "/latest/blocks/blocks.4/Constant_1_output_0",
+            "/latest/blocks/blocks.4/Constant_2_output_0",
+            "/latest/blocks/blocks.4/Constant_output_0",
+            "/latest/blocks/blocks.4/Constant_3_output_0"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.4/Slice_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ],
+            [],
+            [],
+            [],
+            []
+        ],
+        "cosine_similarity": "--"
+    },
+    "Add_54": {
+        "type": "Add",
+        "inputs": [
+            "/latest/blocks/blocks.4/Relu_1_output_0_calibrated",
+            "/latest/blocks/blocks.4/Slice_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.4/Add_output_0"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ],
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    },
+    "Relu_55": {
+        "type": "Relu",
+        "inputs": [
+            "/latest/blocks/blocks.4/Add_output_0_calibrated"
+        ],
+        "outputs": [
+            "/latest/blocks/blocks.4/Relu_2_output_0_before"
+        ],
+        "thresholds": [
+            [
+                1.0
+            ]
+        ],
+        "cosine_similarity": "--"
+    }
+}
