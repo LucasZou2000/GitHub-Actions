@@ -1,0 +1,95 @@
+2026-11-18 02:06:59,137 file: tool_utils.py func: tool_utils line No: 77 log will be stored in /work/hb_mapper_checker.log
+2026-11-18 02:06:59,137 file: hb_mapper.py func: hb_mapper line No: 72 Start hb_mapper....
+2026-11-18 02:06:59,137 file: hb_mapper.py func: hb_mapper line No: 73 hbdk version 3.49.15
+2026-11-18 02:06:59,137 file: hb_mapper.py func: hb_mapper line No: 74 horizon_nn version 1.1.0
+2026-11-18 02:06:59,138 file: hb_mapper.py func: hb_mapper line No: 75 hb_mapper version 1.24.3
+2026-11-18 02:06:59,139 file: onnx_parser.py func: onnx_parser line No: 39 Model input names: ['raw_history']
+2026-11-18 02:06:59,140 file: hb_mapper_checker.py func: hb_mapper_checker line No: 106 Model type: onnx
+2026-11-18 02:06:59,140 file: hb_mapper_checker.py func: hb_mapper_checker line No: 107 march: bayes-e
+2026-11-18 02:06:59,140 file: hb_mapper_checker.py func: hb_mapper_checker line No: 112 input names []
+2026-11-18 02:06:59,140 file: hb_mapper_checker.py func: hb_mapper_checker line No: 113 input shapes {}
+2026-11-18 02:06:59,140 file: hb_mapper_checker.py func: hb_mapper_checker line No: 119 Begin model checking....
+2026-11-18 02:06:59,150 file: model_builder.py func: model_builder line No: 35 Start to Horizon NN Model Convert.
+2026-11-18 02:06:59,153 file: model_debugger.py func: model_debugger line No: 67 Loading horizon_nn debug methods:set()
+2026-11-18 02:06:59,153 file: quantization_config.py func: quantization_config line No: 305 The activation calibration parameters:
+    calibration_type:     fixed
+2026-11-18 02:06:59,153 file: model_builder.py func: model_builder line No: 197 The specified model compilation architecture: bayes-e.
+2026-11-18 02:06:59,154 file: model_builder.py func: model_builder line No: 207 The specified model compilation optimization parameters: [].
+2026-11-18 02:06:59,154 file: model_builder.py func: model_builder line No: 35 Start to prepare the onnx model.
+2026-11-18 02:06:59,157 file: prepare.py func: prepare line No: 106 Input ONNX Model Information:
+ONNX IR version:          7
+Opset version:            ['ai.onnx v11', 'horizon v1']
+Producer:                 pytorch v2.5.0
+Domain:                   None
+Version:                  None
+Graph input:
+    ..._history:          shape=[2, 12, 1, 264], dtype=FLOAT32
+Graph output:
+    ...output_0:          shape=[2, 80, 1, 16], dtype=FLOAT32
+2026-11-18 02:06:59,177 file: model_builder.py func: model_builder line No: 38 End to prepare the onnx model.
+2026-11-18 02:06:59,180 file: model_builder.py func: model_builder line No: 265 Saving model to: ./.hb_check/original_float_model.onnx.
+2026-11-18 02:06:59,180 file: model_builder.py func: model_builder line No: 35 Start to optimize the onnx model.
+2026-11-18 02:06:59,199 file: constant_folding.py func: constant_folding line No: 66 Summary info for constant_folding:
+2026-11-18 02:06:59,199 file: constant_folding.py func: constant_folding line No: 67   After constant_folding, the number of nodes has changed from 57 to 36.
+2026-11-18 02:06:59,199 file: constant_folding.py func: constant_folding line No: 71   After constant_folding, the number of parameters has changed from 294661 to 294661.
+2026-11-18 02:06:59,199 file: constant_folding.py func: constant_folding line No: 76 Detailed info for constant_folding:
+2026-11-18 02:06:59,199 file: constant_folding.py func: constant_folding line No: 88 
+2026-11-18 02:06:59,334 file: model_builder.py func: model_builder line No: 38 End to optimize the onnx model.
+2026-11-18 02:06:59,337 file: model_builder.py func: model_builder line No: 265 Saving model to: ./.hb_check/optimized_float_model.onnx.
+2026-11-18 02:06:59,337 file: model_builder.py func: model_builder line No: 35 Start to calibrate the model.
+2026-11-18 02:06:59,407 file: calibration_data_set.py func: calibration_data_set line No: 111 input name: raw_history,  number_of_samples: 1
+2026-11-18 02:06:59,407 file: calibration_data_set.py func: calibration_data_set line No: 123 There are 1 samples in the data set.
+2026-11-18 02:06:59,407 file: fixed_calibrater.py func: fixed_calibrater line No: 31 Run calibration model with fixed thresholds method.
+2026-11-18 02:06:59,441 file: model_builder.py func: model_builder line No: 38 End to calibrate the model.
+2026-11-18 02:06:59,449 file: model_builder.py func: model_builder line No: 265 Saving model to: ./.hb_check/calibrated_model.onnx.
+2026-11-18 02:06:59,449 file: model_builder.py func: model_builder line No: 35 Start to quantize the model.
+2026-11-18 02:06:59,553 file: constant_folding.py func: constant_folding line No: 66 Summary info for constant_folding:
+2026-11-18 02:06:59,553 file: constant_folding.py func: constant_folding line No: 67   After constant_folding, the number of nodes has changed from 28 to 28.
+2026-11-18 02:06:59,553 file: constant_folding.py func: constant_folding line No: 71   After constant_folding, the number of parameters has changed from 296310 to 296310.
+2026-11-18 02:06:59,553 file: constant_folding.py func: constant_folding line No: 76 Detailed info for constant_folding:
+2026-11-18 02:06:59,553 file: constant_folding.py func: constant_folding line No: 88 
+2026-11-18 02:06:59,561 file: model_builder.py func: model_builder line No: 38 End to quantize the model.
+2026-11-18 02:06:59,569 file: model_builder.py func: model_builder line No: 265 Saving model to: ./.hb_check/quantized_model.onnx.
+2026-11-18 02:06:59,569 file: model_builder.py func: model_builder line No: 35 Start to compile the model with march bayes-e.
+2026-11-18 02:06:59,621 file: hybrid_build.py func: hybrid_build line No: 111 Compile submodel: main_graph_subgraph_0
+2026-11-18 02:06:59,624 file: hbdk_cc.py func: hbdk_cc line No: 126 hbdk-cc parameters:['--input-layout', 'NHWC', '--output-layout', 'NHWC']
+2026-11-18 02:06:59,624 file: hbdk_cc.py func: hbdk_cc line No: 127 hbdk-cc command used:hbdk-cc -f hbir -m /tmp/tmpwlnvhn34/main_graph_subgraph_0.hbir -o /tmp/tmpwlnvhn34/main_graph_subgraph_0.hbm --march bayes-e --progressbar --input-layout NHWC --output-layout NHWC
+2026-11-18 02:06:59,717 file: tool_utils.py func: tool_utils line No: 326 consumed time 0.0736508
+2026-11-18 02:06:59,751 file: tool_utils.py func: tool_utils line No: 326 FPS=1016.4, latency = 1967.7 us, DDR = 3759552 bytes   (see ./.hb_check/main_graph_subgraph_0.html)
+2026-11-18 02:06:59,777 file: model_builder.py func: model_builder line No: 38 End to compile the model with march bayes-e.
+2026-11-18 02:06:59,779 file: print_info_dict.py func: print_info_dict line No: 72 The main quantized node information:
+======================================================================================
+Node        ON   Subgraph  Type               Cosine Similarity  Threshold  DataType  
+--------------------------------------------------------------------------------------
+Conv_0      BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Conv_2      BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Slice_8     BPU  id(0)     Slice              --                 1.0        int8      
+Conv_9      BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Conv_12     BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Conv_14     BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Slice_20    BPU  id(0)     Slice              --                 1.0        int8      
+Add_21      BPU  id(0)     HzSElementwiseAdd  --                 1.0        int8      
+Relu_22     BPU  id(0)     HzLut              --                 1.0        int8      
+Conv_23     BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Conv_25     BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Slice_31    BPU  id(0)     Slice              --                 1.0        int8      
+Add_32      BPU  id(0)     HzSElementwiseAdd  --                 1.0        int8      
+Relu_33     BPU  id(0)     HzLut              --                 1.0        int8      
+Conv_34     BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Conv_36     BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Slice_42    BPU  id(0)     Slice              --                 1.0        int8      
+Add_43      BPU  id(0)     HzSElementwiseAdd  --                 1.0        int8      
+Relu_44     BPU  id(0)     HzLut              --                 1.0        int8      
+Conv_45     BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Conv_47     BPU  id(0)     HzSQuantizedConv   --                 1.0        int8      
+Slice_53    BPU  id(0)     Slice              --                 1.0        int8      
+Add_54      BPU  id(0)     HzSElementwiseAdd  --                 1.0        int8      
+Relu_55     BPU  id(0)     HzLut2Layer        --                 1.0        int16
+2026-11-18 02:06:59,779 file: print_info_dict.py func: print_info_dict line No: 72 The quantized model output:
+============
+Output      
+------------
+2026-11-18 02:06:59,780 file: model_builder.py func: model_builder line No: 38 End to Horizon NN Model Convert.
+2026-11-18 02:06:59,780 file: onnx2horizonrt.py func: onnx2horizonrt line No: 4326 ONNX model output num : 1
+2026-11-18 02:06:59,781 file: onnx2horizonrt.py func: onnx2horizonrt line No: 4060 model_deps_info: {'hb_mapper_version': '1.24.3'}
+2026-11-18 02:06:59,781 file: hb_mapper_checker.py func: hb_mapper_checker line No: 170 End model checking....
