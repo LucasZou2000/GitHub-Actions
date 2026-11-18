@@ -1,0 +1,21 @@
+[sysbench2] onnx=/home/lucas/nature-tcn-validation/onnx-validation/nature_latest_fp32.onnx threads=8 spin=0 in_elems=5976 shape=2 12 249 
+[sysbench2] SCHED_FIFO prio=80 (policy=1)
+[sysbench2] async worker thread started
+
+=== fp32_50_8t_nospin | onnx | 200 Hz loop, infer every 4 (= 50 Hz), 300s, load=4, threads=8 spin=0 ===
+actual rate      : 200.000 Hz (60000 ticks in 300.000 s)
+late ticks       : 0 (0.0000%) [>0.5ms]  hard misses 0 [>1 period]  max consecutive 0
+tick jitter ms   : p50=0.024 p99=0.031 max=0.048
+frame work ms    : p50=0.014 p99=0.027 max=0.072
+infer latency ms : n=14344 p50=18.065 p95=19.917 p99=20.776 max=39.143 fail=0
+data->cmd ms     : n=59993 p50=27.162 p95=35.398 p99=52.627 max=74.187
+budget           : >45ms 1456 (2.427%)  >75ms 0 (0.0000%)
+sched spikes     : 0 ticks >5ms late
+async            : submitted 14345, dropped 655 (worker busy), loop never blocks
+duty             : infer p99 415.5% of period, work p99 0.5%
+cpu cost/infer   : 50.485 ms CPU per inference (run), 49.712 ms (warm, no loop)
+proc cpu         : mean=241.2% p95=251.9% max=253.9% of one core
+sys cpu busy     : mean=83.5% max=85.8%  core-max mean=100.0% max=100.0%
+temp C           : cpu max=78.3 mean=75.4 | ddr max=77.1 mean=74.2
+cpu0 freq MHz    : min=1500 max=1500 | rss start=27716KB peak=30904KB | mem avail min=6623 MB
+JSON {"tag":"fp32_50_8t_nospin","backend":"onnx","hz":200,"infer_hz":50,"duration":300,"load":4,"threads":8,"spin":0,"rate_hz":200.000,"late":0,"late_pct":0.00000,"hard_miss":0,"consec_max":0,"jit_p50":0.0242,"jit_p99":0.0314,"jit_max":0.0478,"work_p99":0.0267,"work_max":0.0720,"infer_p50":18.0651,"infer_p95":19.9167,"infer_p99":20.7757,"infer_max":39.1433,"infer_fail":0,"age_p50":27.1620,"age_p95":35.3977,"age_p99":52.6265,"age_max":74.1872,"over45":1456,"over75":0,"duty_infer_p99":415.51,"cpu_ms_per_infer":50.4851,"warm_ms_per_infer":49.7120,"proc_cpu_mean":241.19,"proc_cpu_p95":251.85,"proc_cpu_max":253.87,"sys_cpu_mean":83.50,"sys_cpu_max":85.84,"core_max_mean":100.00,"core_max_max":100.00,"t_cpu_max":78.27,"t_cpu_mean":75.40,"t_ddr_max":77.14,"t_ddr_mean":74.16,"freq_min":1500,"freq_max":1500,"rss_start_kb":27716,"rss_peak_kb":30904,"mem_avail_min_mb":6623}

@@ -1,0 +1,24 @@
+=====================1=====================
+temperature-->
+	DDR      : 68.6 (C)
+	BPU      : 67.9 (C)
+	CPU      : 68.0 (C)
+cpu frequency-->
+	      min(M)	cur(M)	max(M)
+	cpu0: 300	1500	1500
+	cpu1: 300	1500	1500
+	cpu2: 300	1500	1500
+	cpu3: 300	1500	1500
+	cpu4: 300	1500	1500
+	cpu5: 300	1500	1500
+	cpu6: 300	1500	1500
+	cpu7: 300	1500	1500
+bpu status information---->
+	      min(M)	cur(M)	max(M)	ratio
+	bpu0: 500	1000	1000	0
+ddr frequency information---->
+	      min(M)	cur(M)	max(M)
+	ddr:  266	4266	4266
+GPU gc8000 frequency information---->
+	      min(M)	cur(M)	max(M)
+	gc8000:  200	1000	1000
