@@ -62,11 +62,19 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dataset", type=pathlib.Path, required=True)
     ap.add_argument("--out", type=pathlib.Path, default=ROOT / "calib_real")
+    ap.add_argument("--max-windows", type=int, default=0,
+                    help="evenly subsample trials to at most N windows (0 = all). "
+                         "752 samples hung the 90-min build: 'default' calibration "
+                         "expands to a max+kl modelwise search that is not linear "
+                         "in sample count.")
     args = ap.parse_args()
     files = [p for p in sorted(args.dataset.glob("BT*/*/*_exo.csv"))
              if p.name == f"{p.parent.parent.name}_{p.parent.name}_exo.csv"]
     if not files:
         sys.exit("No exact <subject>_<trial>_exo.csv sensor files found")
+    if args.max_windows and len(files) > args.max_windows:
+        picks = np.linspace(0, len(files) - 1, args.max_windows, dtype=int)
+        files = [files[i] for i in picks]
 
     if args.out.exists():
         shutil.rmtree(args.out)
@@ -91,7 +99,10 @@ def main() -> int:
         ids_written.append(f"raw_history_{i:04d}.bin {relative}:{end}")
         if (i + 1) % 100 == 0 or i + 1 == len(files):
             print(f"progress {i + 1}/{len(files)}", flush=True)
-    (args.out / "calib_ids.txt").write_text("\n".join(ids_written) + "\n")
+    # CAUTION: hb_mapper globs EVERY file in cal_data_dir regardless of
+    # extension (the README.md trap again) -- the ids manifest must live
+    # OUTSIDE the calibration directory.
+    (args.out.parent / "calib_real_ids.txt").write_text("\n".join(ids_written) + "\n")
     print(f"done: {len(ids_written)} calibration windows -> {args.out}")
     return 0
 

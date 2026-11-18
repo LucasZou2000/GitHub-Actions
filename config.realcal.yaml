@@ -12,7 +12,10 @@ model_parameters:
   working_dir: './build_real'
   output_model_file_prefix: 'nature_bpu_realcal'
   layer_out_dump: False
-  log_level: 'debug'
+  # 'info' on purpose: 'debug' dumps the whole cali_dict (every calibration
+  # array) into the log -- with hundreds of samples that is >100 MB through the
+  # docker/tee pipe and has already stalled one 90-minute build.
+  log_level: 'info'
 
 input_parameters:
   input_name: 'raw_history'
