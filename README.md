@@ -58,6 +58,47 @@ error message: The opset version of the model is 17, the maximum supported versi
 
 值得注意的**反直觉结果**：窄阈值集（synthcal，5.38）在典型幅值上分辨率更高，RMSE 反而更好，但大扭矩窗口会饱和（max 0.519）；宽阈值集（realcal，14.35）典型精度略降、极值可控（max 0.156）。**作为控制输入，推荐 realcal**——误差有界比均值好看更重要。
 
+## 系统级实时性（已实测，2026-11-18）
+
+问题不是"BPU 能不能算"，而是"200 Hz IMU + 降频推理的整条链路能不能稳定跑"，以及端到端延迟剩多少给硬件。用 `tools/sysbench.cpp`（板上 `~/sysbench/`）实测：200 Hz 定频主循环（`clock_nanosleep` 绝对时间）→ 249 帧环形窗口 shift+写入 → `hbDNNInfer` + `hbDNNWaitTaskDone` 同步推理 → head 80→2 → 力矩，叠加 4 核背景负载，每配置连续 5 分钟 / 60000 帧。
+
+| 配置 | 迟到节拍 | tick jitter p99/max | 推理 p99/max | data→cmd p99/max |
+|---|---|---|---|---|
+| 200 Hz 推理，performance，无 RT | 1 | 0.068 / 0.684 | 0.759 / 2.384 | 0.849 / 2.501 |
+| **200 Hz 推理，performance，RT 80** | **0** | **0.015 / 0.023** | 0.764 / 1.821 | **0.799 / 1.972** |
+| 100 Hz 推理，performance，RT 80 | **0** | 0.015 / 0.048 | 0.785 / 1.828 | 5.805 / 6.063 |
+| 200 Hz 推理，schedutil，RT 80（load=4） | **0** | 0.018 / 0.037 | 0.788 / 1.831 | 0.829 / 2.013 |
+| 200 Hz 推理，schedutil，RT 80（**load=0**） | 0 | 0.074 / 0.093 | **1.939** / 3.928 | 2.077 / 4.162 |
+| **200 Hz 推理，performance，RT 80（load=0）** | **0** | 0.016 / 0.028 | 0.752 / 1.441 | **0.790 / 1.501** |
+| 50 Hz 推理，performance，RT 80（load=4） | 6 | 0.015 / 28.819 | 0.820 / 33.756 | 15.822 / 48.799 |
+
+单位 ms。结论三条：
+
+1. **RT 的收益在抖动，不在均值**。均值只差 0.05 ms，但 jitter p99 从 0.068 降到 0.015（4.5×）、max 从 0.684 降到 0.023（30×）——均值指标完全看不出 RT 的作用。
+2. **`governor=performance` 是硬要求**。空载时 schedutil 把 CPU 压到 300 MHz，推理 p99 从 0.752 恶化到 1.939（2.6×）。有 4 核负载时因频率被拉满而掩盖了这个问题——所以**只在满载下标定会得出错误结论**。
+3. **降频推理不省心**。50/100 Hz 推理的延迟不是常量，而是按 `(infer_every-1)×5ms + 推理耗时` 分布：100 Hz 最坏 6.06 ms、50 Hz 最坏约 15.8 ms（均为实测，不含文末那个长尾事件），比 200 Hz 的 2.0 ms 差 3–8 倍。省下的算力远小于多出的延迟。
+
+不要绑核（`--pin`）：主线程绑 cpu0 会劣化到 10 次迟到 + 一次 15.6 ms 卡顿，因为 BPU 驱动中断和内核线程也在 cpu0 上；默认调度反而更稳。
+
+### 真实 IMU 数据源（板上实测）
+
+板上跑着 ROS 2 Humble + `ess_imu_driver2`（`ros2 launch ess_imu_driver2 imu_hub_launch.py`，稳态 14–17% CPU），发布 8 个话题 `/A1|A2|B1|B2/data_raw|tempc`，即双测腿 × 大腿/小腿共 4 个 IMU。`ros2 topic hz` 实测：
+
+| 话题 | 平均频率 | 到达间隔 | 抖动 std |
+|---|---|---|---|
+| `/A1/data_raw` | 200.07–200.19 Hz | 4–5 ms | **0.05–0.06 ms** |
+| `/A2/data_raw` | 200.02–200.07 Hz | 5 ms | **0.03 ms** |
+
+**数据源本身不是瓶颈**：200 Hz 稳、抖动 0.05 ms 级。延迟预算的压力全在推理节拍和下游 CAN/电机。
+
+### 一个未定性的长尾（重要，别忽略）
+
+约 20% 的长跑里会出现**单次 ~40–50 ms 停顿**，位置固定在 t≈5.7 s 前后，之后整段不再复现（`late` 计数一次跳到位后保持不变）。两种签名都见过：一次是 `prev_work=47.5ms`（推理本身耗时 47 ms），一次是 `jitter=49.5ms` 而推理仍为 1.8 ms（进程被挂起）。已排除：BPU/DDR devfreq（都锁在 performance，996 MHz / 4266 MHz）、CPU governor（performance，8 核 1500 MHz）、RT 节流（duty 仅 16%，限值 95%）、THP（内核未启用）、音频 codec（es8326 中断计数为 0）。缩小缓冲到 50 KB / 2.5 MB 后 6 次连跑未见，但 16 MB 缓冲也有 2 次连跑未见——**不可按需复现**。
+
+后果：命中时 `data→cmd` 最大值 47–66 ms，会有 1–5 个样本越过 45 ms 期望线，但**没有越过 75 ms 硬上限**。工程含义是必须做超期兜底（推理超过 ~10 ms 就沿用上一帧力矩），并把这个事件计数打进运行时日志；不能假设"5 分钟干净"就等于"永远不会发生"。
+
+`--gpio-tick <pin> --gpio-cmd <pin>` 可按"数据到达 / 力矩就绪"打点，供示波器直接读**硬件段**延迟（IMU 总线、CAN、电机机械响应），并会打印单次 sysfs 写开销供扣减。引脚号用 `/sys/class/gpio/gpiochip*/label` 的 base + 偏移，按 RDK X5 40-pin 定义查；注意 gpio 498-505（AON）被电源键/ID 占用。
+
 ## 已澄清的两件事
 
 
@@ -90,6 +131,8 @@ tools/make_calib.py              合成校准集生成器（固定种子，仅�
 tools/make_eval_bundle.py        从 Parsed 抽真实窗口 → 评测包（图输入 + 双 FP32 参考）
 tools/make_real_calib.py         真实校准集生成器（每 trial 1 窗，与评测窗错开）
 tools/run_eval_cli.py            板上评测（hrt_model_exec 并发，唯一可信路径）
+tools/sysbench.cpp               板上系统级实时性压测（200Hz 主循环 + 同步推理 + head，
+                                 支持 --rt/--load/--pin/--gpio-tick/--gpio-cmd）
 config.makertbin.yaml            makertbin A 配置（正式）；config.b.yaml 为最小回退配置
 config.realcal.yaml              真实校准配置（calib_real/，march bayes-e）
 .github/workflows/hb_checker.yml    Actions：hb_mapper checker → 日志回推 logs 分支
