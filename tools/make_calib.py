@@ -13,7 +13,7 @@ directly in that space: per channel roughly N(0, 1), temporally smooth
 higher-amplitude windows so the thresholds are not under-estimated.
 
 Usage:
-    python tools/make_calib.py            # writes calib/*.npy + calib/synth_calib_100.npz
+    python tools/make_calib.py            # writes calib/*.bin (raw float32)
 """
 
 from __future__ import annotations
@@ -65,8 +65,9 @@ def main() -> None:
     calib_dir = ROOT / "calib"
     if not calib_dir.exists():
         calib_dir.mkdir()
-    for old in calib_dir.glob("raw_history_*.npy"):
-        old.unlink()
+    for pattern in ("raw_history_*.npy", "raw_history_*.bin"):
+        for old in calib_dir.glob(pattern):
+            old.unlink()
 
     windows = []
     for i in range(N_WINDOWS):
@@ -74,7 +75,10 @@ def main() -> None:
         w = window(rng, gain)
         assert w.shape == (2, CH, 1, GRAPH_LEN), w.shape
         windows.append(w)
-        np.save(calib_dir / f"raw_history_{i}.npy", w)
+        # OE cal_data_type=float32 expects RAW BINARY samples, not .npy:
+        # the tool reads the file bytes as float32 directly, so an .npy
+        # header shows up as 32 spurious values (6368 vs 6336).
+        w.tofile(calib_dir / f"raw_history_{i}.bin")
 
     stack = np.stack(windows)
     print(f"wrote {N_WINDOWS} npy files -> {calib_dir}")
@@ -87,7 +91,7 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# NOTE: do NOT put any non-.npy file (including README) into calib/ --
+# NOTE: do NOT put any extra file (including README) into calib/ --
 # hb_mapper makertbin globs the whole directory, sorts it, and treats every
 # file as one calibration sample ("First calibration picture name: README.md"
 # -> "cannot reshape array of size 145 into shape (2,12,1,264)").

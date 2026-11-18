@@ -54,7 +54,7 @@ jobs:
 
       - name: Check calibration set
         run: |
-          n=$(ls calib/raw_history_*.npy 2>/dev/null | wc -l)
+          n=$(ls calib/raw_history_*.bin 2>/dev/null | wc -l)
           echo "calibration windows: $n"
           test "$n" -ge 20 || { echo "::error::calibration set too small"; exit 1; }
 
