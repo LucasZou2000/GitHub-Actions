@@ -12,8 +12,10 @@ on:
     paths:
       - 'config.makertbin.yaml'
       - 'config.b.yaml'
+      - 'config.realcal.yaml'
       - 'models/nature_bpu_opset11.onnx'
       - 'calib/**'
+      - 'calib_real/**'
       - '.github/workflows/hb_makertbin.yml'
 
 env:
@@ -89,11 +91,12 @@ jobs:
               return $rc
             }
 
-            # A: the committed config. B is a minimal fallback config, committed as
-            # config.b.yaml, so a single run can tell a bad key apart from a bad
-            # march value. (march=x5 was tried and rejected: makertbin only
-            # accepts bernoulli2 | bayes | bayes-e, so no C case.)
-            run_case A config.makertbin.yaml && exit 0
+            # A: REAL calibration (calib_real/, one window per Parsed trial --
+            #    provenance in calib_real/calib_ids.txt). This is the accuracy
+            #    candidate. B is the minimal fallback config to tell a bad key
+            #    apart from a bad march value. (march=x5 was tried and rejected:
+            #    makertbin only accepts bernoulli2 | bayes | bayes-e.)
+            run_case A_realcal config.realcal.yaml && exit 0
 
             run_case B_min_yaml config.b.yaml && exit 0
 

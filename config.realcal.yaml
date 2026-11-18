@@ -1,0 +1,35 @@
+# PTQ config for the Nature TCN graph on RDK X5 (bayes-e) with REAL calibration.
+#
+# calib_real/ holds 752 windows taken from the recorded Parsed dataset (one per
+# trial, middle endpoint, see tools/make_real_calib.py + calib_ids.txt for
+# provenance). This replaces the synthetic set whose thresholds destroyed the
+# feature maps on real gait (INT8 output variance ~ 0, corr ~ 0 on 1954 real
+# windows; evidence: data-transferrer repo eval_results on the board).
+
+model_parameters:
+  onnx_model: './models/nature_bpu_opset11.onnx'
+  march: 'bayes-e'
+  working_dir: './build_real'
+  output_model_file_prefix: 'nature_bpu_realcal'
+  layer_out_dump: False
+  log_level: 'debug'
+
+input_parameters:
+  input_name: 'raw_history'
+  input_type_rt: 'featuremap'
+  input_type_train: 'featuremap'
+  input_layout_train: 'NCHW'
+  input_layout_rt: 'NCHW'
+  input_shape: '2x12x1x264'
+  norm_type: 'no_preprocess'
+
+calibration_parameters:
+  cal_data_dir: './calib_real'
+  cal_data_type: 'float32'
+  calibration_type: 'default'
+
+compiler_parameters:
+  compile_mode: 'latency'
+  debug: False
+  optimize_level: 'O3'
+  jobs: 4

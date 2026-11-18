@@ -8,5 +8,6 @@ build/
 *.bin
 # ...except the calibration samples, which ARE the deployable inputs
 !calib/*.bin
+!calib_real/*.bin
 c.yaml
 rdk-bundle/
