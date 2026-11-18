@@ -86,3 +86,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# NOTE: do NOT put any non-.npy file (including README) into calib/ --
+# hb_mapper makertbin globs the whole directory, sorts it, and treats every
+# file as one calibration sample ("First calibration picture name: README.md"
+# -> "cannot reshape array of size 145 into shape (2,12,1,264)").

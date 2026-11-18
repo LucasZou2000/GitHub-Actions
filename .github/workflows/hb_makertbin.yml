@@ -91,16 +91,11 @@ jobs:
 
             # A: the committed config. B is a minimal fallback config, committed as
             # config.b.yaml, so a single run can tell a bad key apart from a bad
-            # march value. C retries B with march=x5 in case the bayes-e alias
-            # is not accepted by makertbin.
+            # march value. (march=x5 was tried and rejected: makertbin only
+            # accepts bernoulli2 | bayes | bayes-e, so no C case.)
             run_case A config.makertbin.yaml && exit 0
 
             run_case B_min_yaml config.b.yaml && exit 0
-
-            # NB: this whole script is inside single quotes for bash -lc, so no
-            # single quotes may appear here -- replace the bare word instead.
-            sed -e "s/bayes-e/x5/" config.b.yaml > c.yaml
-            run_case C_min_march_x5 c.yaml && exit 0
 
             echo "########## ALL CASES FAILED ##########"
             exit 1
