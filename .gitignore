@@ -5,3 +5,4 @@ __pycache__/
 build/
 .hb_check/
 *.bin
+c.yaml

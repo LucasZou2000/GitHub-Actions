@@ -97,8 +97,10 @@ jobs:
 
             run_case B_min_yaml config.b.yaml && exit 0
 
-            sed -e "s/'bayes-e'/'x5'/" config.b.yaml > /tmp/c.yaml
-            run_case C_min_march_x5 /tmp/c.yaml && exit 0
+            # relative paths in a config resolve against the config file's own
+            # directory, so the c.yaml copy must live in the workdir, not /tmp
+            sed -e "s/'bayes-e'/'x5'/" config.b.yaml > c.yaml
+            run_case C_min_march_x5 c.yaml && exit 0
 
             echo "########## ALL CASES FAILED ##########"
             exit 1

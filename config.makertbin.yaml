@@ -20,6 +20,8 @@ input_parameters:
   input_type_rt: 'featuremap'
   input_type_train: 'featuremap'
   input_layout_train: 'NCHW'
+  # required when input_type_rt is featuremap (v1.2.8 schema enforces it)
+  input_layout_rt: 'NCHW'
   input_shape: '2x12x1x264'
   norm_type: 'no_preprocess'
 

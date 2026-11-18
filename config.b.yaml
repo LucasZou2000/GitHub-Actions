@@ -10,6 +10,7 @@ input_parameters:
   input_type_rt: 'featuremap'
   input_type_train: 'featuremap'
   input_layout_train: 'NCHW'
+  input_layout_rt: 'NCHW'
   norm_type: 'no_preprocess'
 
 calibration_parameters:
