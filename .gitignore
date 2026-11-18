@@ -4,5 +4,8 @@ oe_x5.tar.gz
 __pycache__/
 build/
 .hb_check/
+# compiled products are never committed...
 *.bin
+# ...except the calibration samples, which ARE the deployable inputs
+!calib/*.bin
 c.yaml
