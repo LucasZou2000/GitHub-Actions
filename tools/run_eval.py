@@ -59,7 +59,16 @@ def main() -> int:
     hw = np.asarray(head["head_weight"], dtype=np.float32)      # [2,80]
     hb = np.asarray(head["head_bias"], dtype=np.float32)        # [2]
     model = pyeasy_dnn.load(str(args.model.resolve()))[0]
-    in_name = model.inputs[0].name
+    in_name = model.inputs[0].name  # informational only: forward() is positional
+
+    # CRITICAL: model.forward({name: array}) silently ignores the data (the
+    # binding logs "arg_obj is NOT a container") and every call returns the
+    # same constant output. Positional forward(array) is deterministic and
+    # input-sensitive -- verified by feeding zeros vs a real window and
+    # checking the feature maps differ. Never go back to the dict form.
+    def infer(graph_in: np.ndarray) -> np.ndarray:
+        outs = model.forward(graph_in)
+        return np.frombuffer(outs[0].buffer, dtype=np.float32).reshape(2, 80, 16)
 
     results_dir = bundle / "eval_results"
     results_dir.mkdir(exist_ok=True)
@@ -81,8 +90,7 @@ def main() -> int:
         feat_keep = []
         for w in range(n):
             graph_in = np.ascontiguousarray(data[w, :, :, None, :])  # [2,12,1,264]
-            outs = model.forward({in_name: graph_in})
-            feat_full = np.frombuffer(outs[0].buffer, dtype=np.float32).reshape(2, 80, 16)
+            feat_full = infer(graph_in)
             feat = feat_full[:, :, -1]
             left = feat[0] @ hw.T + hb
             right = feat[1] @ hw.T + hb

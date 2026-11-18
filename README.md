@@ -43,10 +43,26 @@ error message: The opset version of the model is 17, the maximum supported versi
 
 占空比推算：**10 Hz → 2.0%**；**200 Hz → 39.4%**（且无法与自身流水，除非多核 / 多图并行）。DDR 侧 10 Hz 只有 37.6 MB/s，无压力。
 
-## 还没验证的两件事
+## 真实数据精度（已实测，2026-11-18）
 
-1. **精度**。`.bin` 的校准集是**合成的**（`tools/make_calib.py`，固定种子），量化阈值来自合成分布。逐层 cosine 0.9998 只说明量化数值上收敛，**不是真实步态上的精度结论**。必须用真实 `*_exo.csv` 窗口重新校准再评估。
-2. **板上实测**。361.6 µs 是 x86 侧编译评估，实板通常更高（DDR 竞争、调度）。要 `hrt_model_exec perf` 才算数。
+评测集：Parsed 数据集 752 个 `*_exo.csv` trial 抽出的 **1954 个真实窗口**（每 trial 2 个，BT18 的 normal_walk/squat/jump 另加 150 个 dense），全部为完整有限、200 Hz 连续的 249 帧窗口，NaN/断点窗口一律排除、不填充。参考值两条：author 管线 FP32 与 BPU 图 FP32（两者 max diff 1.2e-7，证明预处理等价）。
+
+板上执行用 `hrt_model_exec infer`（见踩坑记录：python 绑定不可用），单位 Nm/kg：
+
+| 模型 | RMSE | p99\|err\| | max\|err\| | \|m\|<0.05 符号一致率 | >0.05 符号一致率 |
+|---|---|---|---|---|---|
+| `synthcal`（合成校准） | **0.0142** | 0.039 | 0.519（饱和） | 93.8% | **99.9–100%** |
+| `realcal`（200 真实窗校准） | 0.0197 | 0.065 | **0.156** | 88.0% | **99.7–100%** |
+
+参考信号 RMS 为 0.31–0.44 Nm/kg（峰值约 ±2），**两个模型的误差都在信号 RMS 的 3–6%**，方向在 |m| > 0.05 Nm/kg 区间几乎完全一致。分活动：normal_walk 0.012–0.013、squat 0.010–0.025、jump 0.019、stairs 0.008–0.016。
+
+值得注意的**反直觉结果**：窄阈值集（synthcal，5.38）在典型幅值上分辨率更高，RMSE 反而更好，但大扭矩窗口会饱和（max 0.519）；宽阈值集（realcal，14.35）典型精度略降、极值可控（max 0.156）。**作为控制输入，推荐 realcal**——误差有界比均值好看更重要。
+
+## 已澄清的两件事
+
+
+1. **精度** ✅ 已测：见上，真实数据 1954 窗口 RMSE 0.014–0.020 Nm/kg，方向可靠。
+2. **板上实测** ✅ 已测：1.4–1.7 ms/次（`hrt_model_exec perf` 与 `infer` 一致，infer 报 1.409 ms）。
 
 ## 为什么需要一个新的 ONNX
 
@@ -70,10 +86,14 @@ models/nature_bpu_opset11.onnx   同一张图，opset 11 / IR 7 —— X5 前端
 models/preprocess.json           送数契约：mirror / center / scale / 头权重 / 零前缀帧数
 tools/build_bpu_graph.py         从主仓模型重新生成上面两张图（幂等）+ preprocess.json
 tools/parity_check.py            与主仓原始图的数值等价校验（阈值 1e-5 Nm/kg）
-tools/make_calib.py              合成校准集生成器（固定种子，仅供跑通编译，精度无效）
+tools/make_calib.py              合成校准集生成器（固定种子，仅供跑通编译）
+tools/make_eval_bundle.py        从 Parsed 抽真实窗口 → 评测包（图输入 + 双 FP32 参考）
+tools/make_real_calib.py         真实校准集生成器（每 trial 1 窗，与评测窗错开）
+tools/run_eval_cli.py            板上评测（hrt_model_exec 并发，唯一可信路径）
 config.makertbin.yaml            makertbin A 配置（正式）；config.b.yaml 为最小回退配置
+config.realcal.yaml              真实校准配置（calib_real/，march bayes-e）
 .github/workflows/hb_checker.yml    Actions：hb_mapper checker → 日志回推 logs 分支
-.github/workflows/hb_makertbin.yml  Actions：合成校准 → makertbin → 产物回推 logs-makertbin
+.github/workflows/hb_makertbin.yml  Actions：编译 → 产物回推 logs-makertbin
 evidence/                        已实测运行的完整日志与产物存档
 ```
 
@@ -91,6 +111,10 @@ evidence/                        已实测运行的完整日志与产物存档
 | `size 6368 vs 6336` | `cal_data_type: float32` 按**裸二进制**读样本，不做 npy 解析——128 B 的 npy 头会混进数据；样本必须 `tofile()` 写裸 float32 |
 | `march=x5` 无效 | makertbin 只认 `bernoulli2 / bayes / bayes-e` |
 | CI 绿了但实际失败 | `continue-on-error` 掩盖 exit 255；**必须查 check-run annotations** |
+| 校准集 752 样本把构建拖到 >64 min | `calibration_type: default` 展开成 `['max','kl']` 的 modelwise 搜索，代价对样本数非线性（100 合成样本仅 16.6 s）；`log_level: debug` 还会把整个 `cali_dict` 打印进 docker→tee 管道。→ 改 `calibration_type: max` / 降样本数 / `log_level: info` |
+| `calib_ids.txt` 被当样本读：`cannot reshape array of size 16681` | 同上，`cal_data_dir` 全量 glob——provenance 文件必须放在校准目录**之外** |
+| **`pyeasy_dnn` 的 `forward()` 返回错误结果** | **`model.forward({name: arr})` 静默忽略数据**（日志 `arg_obj is NOT a container`），位置传参、list、写 `inputs[0].buffer` 也都不对：输出比 FP32 大 10 倍、第二个 batch 槽恒为常数、甚至段错误。同一 `.bin` 用 `hrt_model_exec infer` 跑则与 FP32 `corr=0.9924`。→ **板上评测一律走 CLI**（`tools/run_eval_cli.py`，进程启动 1.25 s，6 并发 ≈160 ms/窗） |
+| 图 `[2,12,1,264]` 的 dim0 是 batch | `model_info` 报 `valid shape (2,12,1,264)`，runtime 一次 forward 只更新 batch 0；python 路径下 leg1 输出恒为 27.4292 |
 
 ## 本地复现（Mac）
 
@@ -125,10 +149,11 @@ Actions → `hb-checker` → Run workflow。它做：
 
 | 目标 | 需要什么 |
 |---|---|
-| ✅ 拿到可部署 `.bin` | **已完成**：`evidence/makertbin_run44217406326/nature_bpu_synthcal.bin`（526 KB，合成校准） |
-| 板上实测延迟 | 把 `.bin` 拷到 X5，`hrt_model_exec perf --model nature_bpu_synthcal.bin` |
-| 判定 INT8 精度 | **真实校准窗口**（200~1000 个 249 帧窗口，来自 `*_exo.csv`）重跑 makertbin + 逐关节 RMSE 对比 |
-| 决定是否切主线 | 上面两项都有数之后。当前主线的 10 Hz CPU 路径本身已达标，BPU 的收益是"回收约 1.6 个 A55 核 + 留余量"，不是"达标手段" |
+| ✅ 拿到可部署 `.bin` | 已完成：`nature_bpu_synthcal.bin` / `nature_bpu_realcal.bin`（各 526 KB） |
+| ✅ 板上实测延迟 | 已完成：1.4–1.7 ms/次（`hrt_model_exec perf` 与 `infer` 一致） |
+| ✅ 判定 INT8 精度 | 已完成：1954 真实窗口，RMSE 0.014–0.020 Nm/kg，方向一致率 >99.7%（\|m\|>0.05） |
+| 决定是否切主线 | 待 owner 裁决。10 Hz CPU 主线本身已达标，BPU 的收益是"回收约 1.6 个 A55 核 + 留余量" |
+| 可选：量化余量实验 | `calibration_type: percentile`（如 99.99）或分通道激活，试试同时拿到 synthcal 的 RMSE 和 realcal 的极值 |
 
 ## 已知限制
 
